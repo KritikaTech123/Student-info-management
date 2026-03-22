@@ -36,6 +36,7 @@ Student data is managed in server memory using Java collections. This keeps the 
 - web/style.css - design and table/form styling
 - web/app.js - frontend logic, API calls, and rendering
 - render.yaml - Render service configuration
+- Dockerfile - Docker build configuration for Render
 - Procfile - process start command
 
 ## Features
@@ -47,5 +48,5 @@ Student data is managed in server memory using Java collections. This keeps the 
 - Client + server side feedback for validation errors
 
 ## Deployment
-Deploy this repository on Render as a Java web service.
-Render uses `render.yaml` for build/start settings, and the app listens on the `PORT` env variable automatically.
+Deploy this repository on Render as a Docker web service.
+Render uses `render.yaml` + `Dockerfile`, so you do not need a Java option in the Render UI.

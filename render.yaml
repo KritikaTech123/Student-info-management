@@ -1,6 +1,5 @@
 services:
   - type: web
     name: student-info-management
-    env: java
-    buildCommand: mkdir -p out && javac -d out $(find src/main/java -name "*.java")
-    startCommand: java -cp out com.student.Main
+    env: docker
+    dockerfilePath: ./Dockerfile
