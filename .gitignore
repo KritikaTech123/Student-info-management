@@ -1,0 +1,15 @@
+# Java compiled output
+out/
+*.class
+
+# Logs
+*.log
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment files
+.env

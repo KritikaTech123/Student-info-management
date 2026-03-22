@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Information System</title>
+    <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="background-shape shape-a"></div>
+<div class="background-shape shape-b"></div>
+
+<main class="container">
+    <section class="title-block">
+        <h1>Student Information System</h1>
+        <p>Made by Kritika</p>
+    </section>
+
+    <section class="card form-card">
+        <h2 id="formTitle">Add Student</h2>
+        <form id="studentForm">
+            <input type="hidden" id="studentId" />
+
+            <label>Name</label>
+            <input id="name" type="text" placeholder="Enter full name" required />
+
+            <label>Age</label>
+            <input id="age" type="number" min="1" max="120" placeholder="Enter age" required />
+
+            <label>Enrollment No.</label>
+            <input id="enrollmentNo" type="text" inputmode="numeric" pattern="[0-9]+" title="Enrollment no. must contain only digits" placeholder="Enter enrollment number" required />
+
+            <label>Department</label>
+            <input id="department" type="text" pattern="^[^0-9]+$" title="Department cannot contain numbers" placeholder="Enter department" required />
+
+            <label>CGPA</label>
+            <input id="cgpa" type="number" step="0.01" min="0" max="10" placeholder="Enter CGPA " required />
+
+            <div class="actions">
+                <button type="submit" id="saveBtn">Save Student</button>
+                <button type="button" id="cancelBtn" class="secondary" hidden>Cancel Edit</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="card list-card">
+        <div class="list-head">
+            <h2>Student Records</h2>
+            <input id="searchBox" type="text" placeholder="Search by enrollment no., name, or department" />
+        </div>
+        <div id="tableWrap"></div>
+    </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
