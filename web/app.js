@@ -10,64 +10,12 @@ const tableWrap = document.getElementById("tableWrap");
 const searchBox = document.getElementById("searchBox");
 const cancelBtn = document.getElementById("cancelBtn");
 
-const STORAGE_KEY = "studentInfoManagement.students";
-const NEXT_ID_KEY = "studentInfoManagement.nextId";
-
 let students = [];
 
-function loadStudents() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-        students = [];
-        return;
-    }
-
-    try {
-        const parsed = JSON.parse(raw);
-        students = Array.isArray(parsed) ? parsed : [];
-    } catch {
-        students = [];
-    }
-}
-
-function saveStudents() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-}
-
-function getNextId() {
-    const raw = localStorage.getItem(NEXT_ID_KEY);
-    const value = Number(raw);
-    return Number.isInteger(value) && value > 0 ? value : 1;
-}
-
-function setNextId(nextId) {
-    localStorage.setItem(NEXT_ID_KEY, String(nextId));
-}
-
-function validateInputs() {
-    const name = nameInput.value.trim();
-    const age = Number(ageInput.value.trim());
-    const enrollmentNo = enrollmentNoInput.value.trim();
-    const department = departmentInput.value.trim();
-    const cgpa = Number(cgpaInput.value.trim());
-
-    if (!name) {
-        return "Name is required";
-    }
-    if (!Number.isInteger(age) || age < 1 || age > 120) {
-        return "Age must be a whole number between 1 and 120";
-    }
-    if (!/^[0-9]+$/.test(enrollmentNo)) {
-        return "Enrollment number must contain only digits";
-    }
-    if (/\d/.test(department)) {
-        return "Department cannot contain numbers";
-    }
-    if (!Number.isFinite(cgpa) || cgpa < 0 || cgpa > 10) {
-        return "CGPA must be between 0.00 and 10.00";
-    }
-
-    return null;
+async function fetchStudents() {
+    const response = await fetch("/api/students");
+    students = await response.json();
+    renderTable();
 }
 
 function renderTable() {
@@ -119,60 +67,49 @@ function renderTable() {
 }
 
 function formDataFromInputs() {
-    return {
-        name: nameInput.value.trim(),
-        age: Number(ageInput.value.trim()),
-        enrollmentNo: enrollmentNoInput.value.trim(),
-        department: departmentInput.value.trim(),
-        cgpa: Number(cgpaInput.value.trim()),
-    };
+    const data = new URLSearchParams();
+    data.append("name", nameInput.value.trim());
+    data.append("age", ageInput.value.trim());
+    data.append("enrollmentNo", enrollmentNoInput.value.trim());
+    data.append("department", departmentInput.value.trim());
+    data.append("cgpa", cgpaInput.value.trim());
+    return data;
 }
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const validationError = validateInputs();
-    if (validationError) {
-        alert(validationError);
+    const id = studentIdInput.value;
+    const method = id ? "PUT" : "POST";
+    const url = id ? `/api/students/${id}` : "/api/students";
+
+    const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formDataFromInputs().toString(),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Could not save student");
         return;
     }
 
-    const id = studentIdInput.value;
-    const payload = formDataFromInputs();
-
-    if (id) {
-        const idx = students.findIndex((s) => s.id === Number(id));
-        if (idx === -1) {
-            alert("Student not found");
-            return;
-        }
-
-        students[idx] = {
-            id: Number(id),
-            ...payload,
-        };
-    } else {
-        const nextId = getNextId();
-        students.push({
-            id: nextId,
-            ...payload,
-        });
-        setNextId(nextId + 1);
-    }
-
-    saveStudents();
     resetForm();
-    renderTable();
+    await fetchStudents();
 });
 
-function deleteStudent(id) {
+async function deleteStudent(id) {
     const ok = confirm("Delete this student record?");
     if (!ok) {
         return;
     }
-    students = students.filter((s) => s.id !== id);
-    saveStudents();
-    renderTable();
+    const response = await fetch(`/api/students/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+        alert("Could not delete student");
+        return;
+    }
+    await fetchStudents();
 }
 
 function startEdit(id) {
@@ -212,5 +149,5 @@ function escapeHtml(value) {
 window.startEdit = startEdit;
 window.deleteStudent = deleteStudent;
 
-loadStudents();
-renderTable();
+tableWrap.innerHTML = "<p>No records displayed yet. Add a student to view records.</p>";
+fetchStudents();
