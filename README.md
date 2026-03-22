@@ -1,7 +1,7 @@
 # Student Information Management System
 
 ## Live Link
-[Visit Live App](#) - Add Railway URL here after deployment
+[Visit Live App](#) - Add Render URL here after deployment
 
 ## Project Overview
 This is a full-stack Student Information Management System built with Java for backend logic and HTML/CSS/JavaScript for the user interface. The application supports complete CRUD operations without using any SQL database.
@@ -35,6 +35,8 @@ Student data is managed in server memory using Java collections. This keeps the 
 - web/index.html - UI layout and form
 - web/style.css - design and table/form styling
 - web/app.js - frontend logic, API calls, and rendering
+- render.yaml - Render service configuration
+- Procfile - process start command
 
 ## Features
 - Add student record
@@ -45,5 +47,5 @@ Student data is managed in server memory using Java collections. This keeps the 
 - Client + server side feedback for validation errors
 
 ## Deployment
-Deploy this repository on Railway as a Java web service.
-After deployment, update the Live Link section at the top with your public URL.
+Deploy this repository on Render as a Java web service.
+Render uses `render.yaml` for build/start settings, and the app listens on the `PORT` env variable automatically.
