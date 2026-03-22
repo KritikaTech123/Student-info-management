@@ -1,10 +1,5 @@
 package com.student.server;
 
-import com.student.model.Student;
-import com.student.service.StudentService;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,6 +12,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
+
+import com.student.model.Student;
+import com.student.service.StudentService;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 
 public class StudentHttpServer {
     private final int port;
@@ -109,6 +109,12 @@ public class StudentHttpServer {
     }
 
     private void handleStaticFiles(HttpExchange exchange) throws IOException {
+        String method = exchange.getRequestMethod();
+        if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
+            sendText(exchange, 405, "Method Not Allowed", "text/plain; charset=utf-8");
+            return;
+        }
+
         String path = exchange.getRequestURI().getPath();
         if ("/".equals(path)) {
             path = "/index.html";
@@ -123,6 +129,12 @@ public class StudentHttpServer {
         String contentType = contentType(filePath.toString());
         byte[] content = Files.readAllBytes(filePath);
         exchange.getResponseHeaders().set("Content-Type", contentType);
+        if ("HEAD".equalsIgnoreCase(method)) {
+            exchange.sendResponseHeaders(200, -1);
+            exchange.getResponseBody().close();
+            return;
+        }
+
         exchange.sendResponseHeaders(200, content.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(content);
@@ -145,6 +157,13 @@ public class StudentHttpServer {
     private void sendJson(HttpExchange exchange, int statusCode, String json) throws IOException {
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+
+        if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(statusCode, -1);
+            exchange.getResponseBody().close();
+            return;
+        }
+
         exchange.sendResponseHeaders(statusCode, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
@@ -154,6 +173,13 @@ public class StudentHttpServer {
     private void sendText(HttpExchange exchange, int statusCode, String text, String contentType) throws IOException {
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", contentType);
+
+        if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(statusCode, -1);
+            exchange.getResponseBody().close();
+            return;
+        }
+
         exchange.sendResponseHeaders(statusCode, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
