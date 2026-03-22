@@ -1,26 +1,19 @@
-# Student Information System (Java + HTML/CSS/JS)
+# Student Information System (Netlify)
 
-This project demonstrates core programming concepts:
-- Variables and data types (int, double, String)
-- Classes and objects (Student, StudentService, StudentHttpServer)
-- In-memory data management (no SQL database)
+This project is configured for static hosting on Netlify.
+Student records are stored in browser local storage.
 
 ## Tech Stack
-- Java (backend + HTTP server)
-- HTML, CSS, JavaScript (frontend)
-- No SQL / no external database
+- HTML
+- CSS
+- JavaScript
 
 ## Project Structure
 
-- src/main/java/com/student/model/Student.java - student entity class
-- src/main/java/com/student/service/StudentService.java - CRUD operations in memory
-- src/main/java/com/student/server/StudentHttpServer.java - API + static file server
-- src/main/java/com/student/Main.java - app entry point
 - web/index.html - UI layout
 - web/style.css - styling
-- web/app.js - frontend logic and API calls
-- 
-ender.yaml - Render deployment config
+- web/app.js - frontend logic and local storage data handling
+- netlify.toml - Netlify deployment configuration
 
 ## Features
 
@@ -28,17 +21,18 @@ ender.yaml - Render deployment config
 - View all students
 - Edit student
 - Delete student
-- Search by name/department
-- Form validation on server-side
+- Search by name/department/enrollment number
+- Form validation in browser
+- Local storage persistence per browser
 
-## Deploy
+## Deploy On Netlify
 
-1. Push this project to GitHub.
-2. Create a new Render Web Service from your repo.
-3. Render auto-detects 
-ender.yaml and deploys automatically.
-4. Once deployed, you'll get a Render URL.
+1. Go to Netlify and create a new site from GitHub.
+2. Select this repository.
+3. Build command: leave empty
+4. Publish directory: web
+5. Deploy the site.
 
 ## Live Demo
 
-[Visit Live App](#) - Add Render URL here after deployment
+[Visit Live App](#) - Add Netlify URL here after deployment
