@@ -1,7 +1,7 @@
 # Student Information Management System
 
 ## Live Link
-[Visit Live App](#) - Add Render URL here after deployment
+[Visit Live App](#) - https://student-info-management.onrender.com
 
 ## Project Overview
 This is a full-stack Student Information Management System built with Java for backend logic and HTML/CSS/JavaScript for the user interface. The application supports complete CRUD operations without using any SQL database.
