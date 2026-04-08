@@ -1,1 +1,1 @@
-web: java -cp out:lib/sqlite-jdbc.jar com.student.Main
+web: java -cp out:lib/sqlite-jdbc.jar:lib/postgresql-jdbc.jar com.student.Main

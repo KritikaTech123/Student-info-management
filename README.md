@@ -5,9 +5,9 @@
 
 
 ## Project Overview
-This is a full-stack Student Information Management System built with Java for backend logic and HTML/CSS/JavaScript for the user interface. The application supports complete CRUD operations without using any SQL database.
+This is a full-stack Student Information Management System built with Java for backend logic and HTML/CSS/JavaScript for the user interface. The application supports complete CRUD operations with SQL-backed persistence.
 
-Student data is managed in server memory using Java collections. This keeps the project simple for learning and rapid development, while still demonstrating clean API design, validation rules, and frontend-backend integration.
+Student data is managed through JDBC using PostgreSQL or SQLite (configurable by environment), with automatic in-memory fallback only if no JDBC driver is available.
 
 This repository is now combined with a complete DBMS syllabus design pack (Unit I-IV), including ER-to-relational mapping, normalized schema, SQL queries, indexing strategy, transactions, and advanced concepts.
 
@@ -16,7 +16,8 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 - HTML (page structure)
 - CSS (UI styling)
 - JavaScript (frontend interactivity and API calls)
-- JDBC + SQLite (primary storage)
+- JDBC + PostgreSQL (production)
+- JDBC + SQLite (local default)
 - Automatic in-memory fallback when JDBC driver is unavailable
 - DBMS design artifacts (SQL + relational algebra + normalization notes)
 
@@ -30,7 +31,7 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 ## How The Application Works
 1. The Java server starts on a configurable `PORT` and serves both API endpoints and static web files.
 2. Frontend JavaScript sends requests to endpoints like `/api/students` for add, edit, delete, and fetch operations.
-3. The backend uses JDBC with SQLite tables for students, departments, courses, instructors, enrollments, and results.
+3. The backend uses JDBC with PostgreSQL/SQLite tables for students, departments, courses, instructors, enrollments, and results.
 4. On startup, schema and indexes are auto-created and demo records are seeded if empty.
 5. If JDBC driver is unavailable locally, the app safely falls back to in-memory mode.
 
@@ -74,11 +75,14 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 
 ## Runtime Configuration
 - `PORT`: server port (default `8080`)
-- `DB_URL`: JDBC URL (default `jdbc:sqlite:student.db`)
+- `DB_URL`: JDBC URL (overrides everything if set)
+- `DATABASE_URL`: Render/Heroku-style PostgreSQL URL (auto-converted to JDBC)
 
 Examples:
-- Local default: `DB_URL=jdbc:sqlite:student.db`
-- Local custom file: `DB_URL=jdbc:sqlite:data/student.db`
+- Local default (SQLite): `DB_URL=jdbc:sqlite:student.db`
+- Local custom SQLite file: `DB_URL=jdbc:sqlite:data/student.db`
+- PostgreSQL JDBC form: `DB_URL=jdbc:postgresql://host:5432/dbname?sslmode=require&user=USER&password=PASS`
+- Render style form: `DATABASE_URL=postgresql://USER:PASS@HOST:5432/dbname?sslmode=require`
 
 ## Deployment
 Deploy this repository on Render as a Docker web service.

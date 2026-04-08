@@ -1,5 +1,7 @@
 package com.student.service;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -17,17 +19,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.student.model.Student;
 
 public class StudentService {
+    private enum DbDialect {
+        SQLITE,
+        POSTGRES
+    }
+
     private final String dbUrl;
+    private final DbDialect dbDialect;
     private final boolean databaseEnabled;
     private final List<Student> students = new ArrayList<>();
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     public StudentService() {
-        String configuredDbUrl = System.getenv("DB_URL");
-        if (configuredDbUrl == null || configuredDbUrl.isBlank()) {
-            configuredDbUrl = "jdbc:sqlite:student.db";
-        }
-        this.dbUrl = configuredDbUrl;
+        String configuredDbUrl = firstNonBlank(System.getenv("DB_URL"), System.getenv("DATABASE_URL"));
+        this.dbUrl = normalizeDbUrl(configuredDbUrl);
+        this.dbDialect = detectDialect(this.dbUrl);
         this.databaseEnabled = initializeDatabaseOrFallback();
     }
 
@@ -158,9 +164,78 @@ public class StudentService {
         return value == null ? "" : value.trim();
     }
 
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
+    }
+
+    private String normalizeDbUrl(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "jdbc:sqlite:student.db";
+        }
+
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("jdbc:")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("postgres://") || trimmed.startsWith("postgresql://")) {
+            return toJdbcPostgresUrl(trimmed);
+        }
+        return "jdbc:sqlite:" + trimmed;
+    }
+
+    private DbDialect detectDialect(String url) {
+        if (url.startsWith("jdbc:postgresql:")) {
+            return DbDialect.POSTGRES;
+        }
+        return DbDialect.SQLITE;
+    }
+
+    private String toJdbcPostgresUrl(String url) {
+        try {
+            URI uri = new URI(url);
+            String userInfo = uri.getUserInfo();
+            String[] credentials = userInfo == null ? new String[0] : userInfo.split(":", 2);
+            String user = credentials.length > 0 ? credentials[0] : "";
+            String password = credentials.length > 1 ? credentials[1] : "";
+            String query = uri.getQuery();
+            StringBuilder queryBuilder = new StringBuilder();
+            if (query != null && !query.isBlank()) {
+                queryBuilder.append(query);
+            }
+            if (queryBuilder.toString().toLowerCase().contains("sslmode=") == false) {
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append("&");
+                }
+                queryBuilder.append("sslmode=require");
+            }
+            if (!user.isEmpty()) {
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append("&");
+                }
+                queryBuilder.append("user=").append(user);
+            }
+            if (!password.isEmpty()) {
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append("&");
+                }
+                queryBuilder.append("password=").append(password);
+            }
+            String jdbc = "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + uri.getPath();
+            return queryBuilder.length() > 0 ? jdbc + "?" + queryBuilder : jdbc;
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException("Invalid DATABASE_URL format", ex);
+        }
+    }
+
     private boolean initializeDatabaseOrFallback() {
         try {
-            Class.forName("org.sqlite.JDBC");
+            Class.forName(dbDialect == DbDialect.POSTGRES ? "org.postgresql.Driver" : "org.sqlite.JDBC");
             initializeSchema();
             seedDatabaseIfEmpty();
             return true;
@@ -181,14 +256,91 @@ public class StudentService {
 
     private Connection getConnection() throws SQLException {
         Connection connection = DriverManager.getConnection(dbUrl);
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("PRAGMA foreign_keys = ON");
+        if (dbDialect == DbDialect.SQLITE) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("PRAGMA foreign_keys = ON");
+            }
         }
         return connection;
     }
 
     private void initializeSchema() throws SQLException {
         try (Connection connection = getConnection(); Statement stmt = connection.createStatement()) {
+            if (dbDialect == DbDialect.POSTGRES) {
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS departments (
+                        department_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        department_name VARCHAR(100) NOT NULL UNIQUE,
+                        office_room VARCHAR(20)
+                    )
+                """);
+
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS students (
+                        student_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        enrollment_no VARCHAR(20) NOT NULL UNIQUE,
+                        student_name VARCHAR(120) NOT NULL,
+                        date_of_birth DATE,
+                        gender VARCHAR(10),
+                        email VARCHAR(150) UNIQUE,
+                        phone VARCHAR(20),
+                        department_id INTEGER NOT NULL,
+                        admission_year INTEGER,
+                        age INTEGER NOT NULL,
+                        cgpa DOUBLE PRECISION NOT NULL,
+                        FOREIGN KEY (department_id) REFERENCES departments(department_id)
+                    )
+                """);
+
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS instructors (
+                        instructor_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        instructor_name VARCHAR(120) NOT NULL,
+                        email VARCHAR(150) UNIQUE,
+                        department_id INTEGER NOT NULL,
+                        FOREIGN KEY (department_id) REFERENCES departments(department_id)
+                    )
+                """);
+
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS courses (
+                        course_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        course_code VARCHAR(20) NOT NULL UNIQUE,
+                        course_title VARCHAR(150) NOT NULL,
+                        credits INTEGER NOT NULL,
+                        department_id INTEGER NOT NULL,
+                        instructor_id INTEGER,
+                        FOREIGN KEY (department_id) REFERENCES departments(department_id),
+                        FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id)
+                    )
+                """);
+
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS enrollments (
+                        enrollment_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        student_id INTEGER NOT NULL,
+                        course_id INTEGER NOT NULL,
+                        semester VARCHAR(20) NOT NULL,
+                        academic_year VARCHAR(20) NOT NULL,
+                        enrolled_on DATE NOT NULL,
+                        UNIQUE (student_id, course_id, semester, academic_year),
+                        FOREIGN KEY (student_id) REFERENCES students(student_id),
+                        FOREIGN KEY (course_id) REFERENCES courses(course_id)
+                    )
+                """);
+
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS results (
+                        result_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        enrollment_id INTEGER NOT NULL UNIQUE,
+                        marks_obtained DOUBLE PRECISION NOT NULL,
+                        grade VARCHAR(2) NOT NULL,
+                        grade_points DOUBLE PRECISION NOT NULL,
+                        published_on DATE,
+                        FOREIGN KEY (enrollment_id) REFERENCES enrollments(enrollment_id)
+                    )
+                """);
+            } else {
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS departments (
                     department_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -262,6 +414,7 @@ public class StudentService {
                     FOREIGN KEY (enrollment_id) REFERENCES enrollments(enrollment_id)
                 )
             """);
+            }
 
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_students_department_id ON students(department_id)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_courses_department_id ON courses(department_id)");
