@@ -26,12 +26,16 @@ public class StudentService {
 
     private final String dbUrl;
     private final DbDialect dbDialect;
+    private final boolean allowInMemoryFallback;
+    private final boolean seedDemoData;
     private final boolean databaseEnabled;
     private final List<Student> students = new ArrayList<>();
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     public StudentService() {
         String configuredDbUrl = firstNonBlank(System.getenv("DB_URL"), System.getenv("DATABASE_URL"));
+        this.allowInMemoryFallback = configuredDbUrl == null || configuredDbUrl.isBlank();
+        this.seedDemoData = !"false".equalsIgnoreCase(firstNonBlank(System.getenv("SEED_DEMO_DATA"), "true"));
         this.dbUrl = normalizeDbUrl(configuredDbUrl);
         this.dbDialect = detectDialect(this.dbUrl);
         this.databaseEnabled = initializeDatabaseOrFallback();
@@ -238,8 +242,12 @@ public class StudentService {
             Class.forName(dbDialect == DbDialect.POSTGRES ? "org.postgresql.Driver" : "org.sqlite.JDBC");
             initializeSchema();
             seedDatabaseIfEmpty();
+            System.out.println("StudentService storage mode: " + dbDialect + " (" + dbUrl + ")");
             return true;
         } catch (ClassNotFoundException | SQLException ex) {
+            if (!allowInMemoryFallback) {
+                throw new RuntimeException("Configured database startup failed. Fix DB_URL/DATABASE_URL and restart.", ex);
+            }
             seedInMemory();
             System.err.println("JDBC storage unavailable. Falling back to in-memory mode: " + ex.getMessage());
             return false;
@@ -249,6 +257,9 @@ public class StudentService {
     private void seedInMemory() {
         students.clear();
         nextId.set(1);
+        if (!seedDemoData) {
+            return;
+        }
         students.add(new Student(nextId.getAndIncrement(), "2024001", "Ananya Sharma", 20, "Computer Science", 8.7));
         students.add(new Student(nextId.getAndIncrement(), "2024002", "Rohan Mehta", 21, "Information Technology", 8.2));
         students.add(new Student(nextId.getAndIncrement(), "2024003", "Priya Verma", 19, "Electronics", 9.1));
@@ -447,6 +458,9 @@ public class StudentService {
     }
 
     private void seedDatabaseIfEmpty() throws SQLException {
+        if (!seedDemoData) {
+            return;
+        }
         String countSql = "SELECT COUNT(*) AS total FROM students";
         try (Connection connection = getConnection();
              Statement stmt = connection.createStatement();

@@ -14,7 +14,7 @@ let students = [];
 
 async function fetchStudents() {
     try {
-        const response = await fetch("/api/students");
+        const response = await fetch("/api/students", { cache: "no-store" });
         if (!response.ok) {
             throw new Error("Could not load students");
         }
