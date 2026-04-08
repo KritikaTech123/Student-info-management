@@ -27,6 +27,7 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 - Unit III (Normalization + Indexing + File Organization concepts): `dbms/schema.sql`, `dbms/dbms-notes.md`
 - Unit IV (Transactions + Advanced Concepts): `dbms/queries.sql`, `dbms/schema.sql` (view), `dbms/dbms-notes.md`
 - ER Diagram Artifact: `dbms/er-diagram.md` (Mermaid ER diagram rendered by GitHub)
+- Results Summary (ER + Schema + SQL + Normalization): `dbms/results.md`
 
 ## How The Application Works
 1. The Java server starts on a configurable `PORT` and serves both API endpoints and static web files.
@@ -44,7 +45,6 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 ## Project Structure
 - src/main/java/com/student/Main.java - application entry point
 - src/main/java/com/student/model/Student.java - student model
-- src/main/java/com/student/service/StudentService.java - in-memory CRUD service
 - src/main/java/com/student/service/StudentService.java - JDBC CRUD service with safe in-memory fallback
 - src/main/java/com/student/server/StudentHttpServer.java - API routes + static file serving
 - web/index.html - UI layout and form
@@ -54,6 +54,7 @@ This repository is now combined with a complete DBMS syllabus design pack (Unit 
 - dbms/queries.sql - insert scripts, SQL query set, transaction example
 - dbms/dbms-notes.md - ER mapping, relational algebra, normalization, file/index notes
 - dbms/er-diagram.md - ER diagram for project report/submission
+- dbms/results.md - final DBMS results document for submission
 - render.yaml - Render service configuration
 - Dockerfile - Docker build configuration for Render
 - Procfile - process start command
