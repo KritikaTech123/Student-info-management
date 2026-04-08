@@ -10,6 +10,20 @@ This document presents final results for the Student Information Management Syst
   - Department -> Instructors (1:N)
   - Student -> Course (M:N) resolved through Enrollment
   - Enrollment -> Result (1:1)
+
+ER model diagram:
+
+```mermaid
+erDiagram
+    DEPARTMENTS ||--o{ STUDENTS : has
+    DEPARTMENTS ||--o{ COURSES : offers
+    DEPARTMENTS ||--o{ INSTRUCTORS : contains
+    INSTRUCTORS ||--o{ COURSES : teaches
+    STUDENTS ||--o{ ENROLLMENTS : registers
+    COURSES ||--o{ ENROLLMENTS : has
+    ENROLLMENTS ||--|| RESULTS : produces
+```
+
 - Outcome: A complete conceptual model that avoids ambiguity and supports scalable academic record management.
 
 Reference: [er-diagram.md](er-diagram.md)
