@@ -1,20 +1,76 @@
 package com.student.service;
 
-import com.student.model.Student;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.student.model.Student;
+
 public class StudentService {
+    private final String dbUrl;
+    private final boolean databaseEnabled;
     private final List<Student> students = new ArrayList<>();
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     public StudentService() {
+        String configuredDbUrl = System.getenv("DB_URL");
+        if (configuredDbUrl == null || configuredDbUrl.isBlank()) {
+            configuredDbUrl = "jdbc:sqlite:student.db";
+        }
+        this.dbUrl = configuredDbUrl;
+        this.databaseEnabled = initializeDatabaseOrFallback();
     }
 
     public synchronized Student addStudent(String enrollmentNo, String name, int age, String department, double cgpa) {
+        if (databaseEnabled) {
+            return addStudentInDatabase(enrollmentNo, name, age, department, cgpa);
+        }
+        return addStudentInMemory(enrollmentNo, name, age, department, cgpa);
+    }
+
+    public synchronized List<Student> getAllStudents() {
+        if (databaseEnabled) {
+            return getAllStudentsFromDatabase();
+        }
+        return Collections.unmodifiableList(new ArrayList<>(students));
+    }
+
+    public synchronized Optional<Student> getById(int id) {
+        if (databaseEnabled) {
+            return getByIdFromDatabase(id);
+        }
+        return students.stream().filter(s -> s.getId() == id).findFirst();
+    }
+
+    public synchronized boolean updateStudent(int id, String enrollmentNo, String name, int age, String department, double cgpa) {
+        if (databaseEnabled) {
+            return updateStudentInDatabase(id, enrollmentNo, name, age, department, cgpa);
+        }
+        return updateStudentInMemory(id, enrollmentNo, name, age, department, cgpa);
+    }
+
+    public synchronized boolean deleteStudent(int id) {
+        if (databaseEnabled) {
+            return deleteStudentFromDatabase(id);
+        }
+        boolean removed = students.removeIf(s -> s.getId() == id);
+        if (removed) {
+            reindexIds();
+        }
+        return removed;
+    }
+
+    private Student addStudentInMemory(String enrollmentNo, String name, int age, String department, double cgpa) {
         String normalizedEnrollmentNo = normalize(enrollmentNo);
         String normalizedName = normalize(name);
         String normalizedDepartment = normalize(department);
@@ -37,15 +93,7 @@ public class StudentService {
         return student;
     }
 
-    public synchronized List<Student> getAllStudents() {
-        return Collections.unmodifiableList(new ArrayList<>(students));
-    }
-
-    public synchronized Optional<Student> getById(int id) {
-        return students.stream().filter(s -> s.getId() == id).findFirst();
-    }
-
-    public synchronized boolean updateStudent(int id, String enrollmentNo, String name, int age, String department, double cgpa) {
+    private boolean updateStudentInMemory(int id, String enrollmentNo, String name, int age, String department, double cgpa) {
         Optional<Student> optionalStudent = getById(id);
         if (optionalStudent.isEmpty()) {
             return false;
@@ -68,14 +116,6 @@ public class StudentService {
         student.setDepartment(normalizedDepartment);
         student.setCgpa(cgpa);
         return true;
-    }
-
-    public synchronized boolean deleteStudent(int id) {
-        boolean removed = students.removeIf(s -> s.getId() == id);
-        if (removed) {
-            reindexIds();
-        }
-        return removed;
     }
 
     private void reindexIds() {
@@ -116,5 +156,351 @@ public class StudentService {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean initializeDatabaseOrFallback() {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            initializeSchema();
+            seedDatabaseIfEmpty();
+            return true;
+        } catch (ClassNotFoundException | SQLException ex) {
+            seedInMemory();
+            System.err.println("JDBC storage unavailable. Falling back to in-memory mode: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private void seedInMemory() {
+        students.clear();
+        nextId.set(1);
+        students.add(new Student(nextId.getAndIncrement(), "2024001", "Ananya Sharma", 20, "Computer Science", 8.7));
+        students.add(new Student(nextId.getAndIncrement(), "2024002", "Rohan Mehta", 21, "Information Technology", 8.2));
+        students.add(new Student(nextId.getAndIncrement(), "2024003", "Priya Verma", 19, "Electronics", 9.1));
+    }
+
+    private Connection getConnection() throws SQLException {
+        Connection connection = DriverManager.getConnection(dbUrl);
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("PRAGMA foreign_keys = ON");
+        }
+        return connection;
+    }
+
+    private void initializeSchema() throws SQLException {
+        try (Connection connection = getConnection(); Statement stmt = connection.createStatement()) {
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS departments (
+                    department_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    department_name TEXT NOT NULL UNIQUE,
+                    office_room TEXT
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS students (
+                    student_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    enrollment_no TEXT NOT NULL UNIQUE,
+                    student_name TEXT NOT NULL,
+                    date_of_birth DATE,
+                    gender TEXT,
+                    email TEXT UNIQUE,
+                    phone TEXT,
+                    department_id INTEGER NOT NULL,
+                    admission_year INTEGER,
+                    age INTEGER NOT NULL,
+                    cgpa REAL NOT NULL,
+                    FOREIGN KEY (department_id) REFERENCES departments(department_id)
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS instructors (
+                    instructor_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    instructor_name TEXT NOT NULL,
+                    email TEXT UNIQUE,
+                    department_id INTEGER NOT NULL,
+                    FOREIGN KEY (department_id) REFERENCES departments(department_id)
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS courses (
+                    course_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    course_code TEXT NOT NULL UNIQUE,
+                    course_title TEXT NOT NULL,
+                    credits INTEGER NOT NULL,
+                    department_id INTEGER NOT NULL,
+                    instructor_id INTEGER,
+                    FOREIGN KEY (department_id) REFERENCES departments(department_id),
+                    FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id)
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS enrollments (
+                    enrollment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    course_id INTEGER NOT NULL,
+                    semester TEXT NOT NULL,
+                    academic_year TEXT NOT NULL,
+                    enrolled_on DATE NOT NULL,
+                    UNIQUE (student_id, course_id, semester, academic_year),
+                    FOREIGN KEY (student_id) REFERENCES students(student_id),
+                    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS results (
+                    result_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    enrollment_id INTEGER NOT NULL UNIQUE,
+                    marks_obtained REAL NOT NULL,
+                    grade TEXT NOT NULL,
+                    grade_points REAL NOT NULL,
+                    published_on DATE,
+                    FOREIGN KEY (enrollment_id) REFERENCES enrollments(enrollment_id)
+                )
+            """);
+
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_students_department_id ON students(department_id)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_courses_department_id ON courses(department_id)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_results_grade ON results(grade)");
+
+            stmt.execute("DROP VIEW IF EXISTS v_student_course_result");
+            stmt.execute("""
+                CREATE VIEW v_student_course_result AS
+                SELECT
+                    s.student_id,
+                    s.enrollment_no,
+                    s.student_name,
+                    d.department_name,
+                    c.course_code,
+                    c.course_title,
+                    e.semester,
+                    e.academic_year,
+                    r.marks_obtained,
+                    r.grade,
+                    r.grade_points
+                FROM students s
+                JOIN departments d ON d.department_id = s.department_id
+                JOIN enrollments e ON e.student_id = s.student_id
+                JOIN courses c ON c.course_id = e.course_id
+                LEFT JOIN results r ON r.enrollment_id = e.enrollment_id
+            """);
+        }
+    }
+
+    private void seedDatabaseIfEmpty() throws SQLException {
+        String countSql = "SELECT COUNT(*) AS total FROM students";
+        try (Connection connection = getConnection();
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(countSql)) {
+            if (rs.next() && rs.getInt("total") > 0) {
+                return;
+            }
+        }
+
+        addStudentInDatabase("2024001", "Ananya Sharma", 20, "Computer Science", 8.7);
+        addStudentInDatabase("2024002", "Rohan Mehta", 21, "Information Technology", 8.2);
+        addStudentInDatabase("2024003", "Priya Verma", 19, "Electronics", 9.1);
+    }
+
+    private Student addStudentInDatabase(String enrollmentNo, String name, int age, String department, double cgpa) {
+        String normalizedEnrollmentNo = normalize(enrollmentNo);
+        String normalizedName = normalize(name);
+        String normalizedDepartment = normalize(department);
+
+        if (normalizedEnrollmentNo.isEmpty() || normalizedName.isEmpty() || normalizedDepartment.isEmpty()) {
+            throw new IllegalArgumentException("All fields are required");
+        }
+
+        try (Connection connection = getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                int departmentId = getOrCreateDepartmentId(connection, normalizedDepartment);
+
+                String insertSql = """
+                    INSERT INTO students
+                    (enrollment_no, student_name, date_of_birth, department_id, admission_year, age, cgpa)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
+
+                try (PreparedStatement ps = connection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setString(1, normalizedEnrollmentNo);
+                    ps.setString(2, normalizedName);
+                    ps.setDate(3, Date.valueOf(LocalDate.of(2000, 1, 1)));
+                    ps.setInt(4, departmentId);
+                    ps.setInt(5, LocalDate.now().getYear());
+                    ps.setInt(6, age);
+                    ps.setDouble(7, cgpa);
+                    ps.executeUpdate();
+
+                    try (ResultSet keys = ps.getGeneratedKeys()) {
+                        if (keys.next()) {
+                            int id = keys.getInt(1);
+                            connection.commit();
+                            return new Student(id, normalizedEnrollmentNo, normalizedName, age, normalizedDepartment, cgpa);
+                        }
+                    }
+                }
+
+                connection.rollback();
+                throw new IllegalStateException("Could not create student");
+            } catch (SQLException ex) {
+                connection.rollback();
+                if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("unique")) {
+                    throw new IllegalArgumentException("Enrollment number already exists");
+                }
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Database error while adding student", ex);
+        }
+    }
+
+    private List<Student> getAllStudentsFromDatabase() {
+        String sql = """
+            SELECT s.student_id, s.enrollment_no, s.student_name, s.age, d.department_name, s.cgpa
+            FROM students s
+            JOIN departments d ON d.department_id = s.department_id
+            ORDER BY s.student_id
+        """;
+
+        List<Student> result = new ArrayList<>();
+        try (Connection connection = getConnection();
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                result.add(new Student(
+                        rs.getInt("student_id"),
+                        rs.getString("enrollment_no"),
+                        rs.getString("student_name"),
+                        rs.getInt("age"),
+                        rs.getString("department_name"),
+                        rs.getDouble("cgpa")
+                ));
+            }
+            return result;
+        } catch (SQLException ex) {
+            throw new RuntimeException("Database error while reading students", ex);
+        }
+    }
+
+    private Optional<Student> getByIdFromDatabase(int id) {
+        String sql = """
+            SELECT s.student_id, s.enrollment_no, s.student_name, s.age, d.department_name, s.cgpa
+            FROM students s
+            JOIN departments d ON d.department_id = s.department_id
+            WHERE s.student_id = ?
+        """;
+
+        try (Connection connection = getConnection();
+             PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Student(
+                        rs.getInt("student_id"),
+                        rs.getString("enrollment_no"),
+                        rs.getString("student_name"),
+                        rs.getInt("age"),
+                        rs.getString("department_name"),
+                        rs.getDouble("cgpa")
+                ));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Database error while reading student", ex);
+        }
+    }
+
+    private boolean updateStudentInDatabase(int id, String enrollmentNo, String name, int age, String department, double cgpa) {
+        String normalizedEnrollmentNo = normalize(enrollmentNo);
+        String normalizedName = normalize(name);
+        String normalizedDepartment = normalize(department);
+
+        try (Connection connection = getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                int departmentId = getOrCreateDepartmentId(connection, normalizedDepartment);
+                String updateSql = """
+                    UPDATE students
+                    SET enrollment_no = ?, student_name = ?, department_id = ?, age = ?, cgpa = ?
+                    WHERE student_id = ?
+                """;
+                try (PreparedStatement ps = connection.prepareStatement(updateSql)) {
+                    ps.setString(1, normalizedEnrollmentNo);
+                    ps.setString(2, normalizedName);
+                    ps.setInt(3, departmentId);
+                    ps.setInt(4, age);
+                    ps.setDouble(5, cgpa);
+                    ps.setInt(6, id);
+                    int updatedRows = ps.executeUpdate();
+                    connection.commit();
+                    return updatedRows > 0;
+                }
+            } catch (SQLException ex) {
+                connection.rollback();
+                if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("unique")) {
+                    throw new IllegalArgumentException("Enrollment number already exists");
+                }
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Database error while updating student", ex);
+        }
+    }
+
+    private boolean deleteStudentFromDatabase(int id) {
+        String deleteSql = "DELETE FROM students WHERE student_id = ?";
+        try (Connection connection = getConnection();
+             PreparedStatement ps = connection.prepareStatement(deleteSql)) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            throw new RuntimeException("Database error while deleting student", ex);
+        }
+    }
+
+    private int getOrCreateDepartmentId(Connection connection, String departmentName) throws SQLException {
+        String selectSql = "SELECT department_id FROM departments WHERE department_name = ?";
+        try (PreparedStatement select = connection.prepareStatement(selectSql)) {
+            select.setString(1, departmentName);
+            try (ResultSet rs = select.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("department_id");
+                }
+            }
+        }
+
+        String insertSql = "INSERT INTO departments(department_name) VALUES(?)";
+        try (PreparedStatement insert = connection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+            insert.setString(1, departmentName);
+            insert.executeUpdate();
+            try (ResultSet keys = insert.getGeneratedKeys()) {
+                if (keys.next()) {
+                    return keys.getInt(1);
+                }
+            }
+        }
+
+        try (PreparedStatement select = connection.prepareStatement(selectSql)) {
+            select.setString(1, departmentName);
+            try (ResultSet rs = select.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("department_id");
+                }
+            }
+        }
+
+        throw new IllegalStateException("Could not create department");
     }
 }

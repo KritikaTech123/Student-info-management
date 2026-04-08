@@ -13,9 +13,16 @@ const cancelBtn = document.getElementById("cancelBtn");
 let students = [];
 
 async function fetchStudents() {
-    const response = await fetch("/api/students");
-    students = await response.json();
-    renderTable();
+    try {
+        const response = await fetch("/api/students");
+        if (!response.ok) {
+            throw new Error("Could not load students");
+        }
+        students = await response.json();
+        renderTable();
+    } catch (error) {
+        tableWrap.innerHTML = "<p>Could not load student records. Please refresh the page.</p>";
+    }
 }
 
 function renderTable() {
@@ -26,12 +33,8 @@ function renderTable() {
         String(s.enrollmentNo).includes(term)
     );
 
-    if (!filtered.length) {
-        tableWrap.innerHTML = "<p>No students found.</p>";
-        return;
-    }
-
-    const rows = filtered.map((s) => `
+    const rows = filtered.length
+        ? filtered.map((s) => `
         <tr>
             <td>${s.id}</td>
             <td>${escapeHtml(s.name)}</td>
@@ -46,7 +49,12 @@ function renderTable() {
                 </div>
             </td>
         </tr>
-    `).join("");
+    `).join("")
+        : `
+        <tr>
+            <td colspan="7">No students found.</td>
+        </tr>
+    `;
 
     tableWrap.innerHTML = `
         <table>
@@ -149,5 +157,5 @@ function escapeHtml(value) {
 window.startEdit = startEdit;
 window.deleteStudent = deleteStudent;
 
-tableWrap.innerHTML = "<p>No records displayed yet. Add a student to view records.</p>";
+tableWrap.innerHTML = "<p>Loading records...</p>";
 fetchStudents();
