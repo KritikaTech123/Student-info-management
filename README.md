@@ -87,3 +87,14 @@ Examples:
 ## Deployment
 Deploy this repository on Render as a Docker web service.
 Render uses `render.yaml` + `Dockerfile`, so you do not need a Java option in the Render UI.
+
+### Render Blueprint (Web + Managed PostgreSQL)
+- `render.yaml` now provisions:
+	- a Docker web service (`student-info-management`)
+	- a managed PostgreSQL instance (`student-info-db`)
+- `DATABASE_URL` is automatically injected into the web service from the managed database connection string.
+
+To deploy from blueprint:
+1. In Render, choose **New** -> **Blueprint**.
+2. Connect this GitHub repo.
+3. Render creates both services and links `DATABASE_URL` automatically.
